@@ -90,11 +90,11 @@ class FourInARowBoard():
     if not found: 
       self.DropPiece((col+1)%self.cols,color)
 
-  def __str__(self):
+  def __str__(self,redToken='|',blackToken='-',noToken=' '):
      result = "" 
      for row in reversed(range(0,self.rows)): 
        for col in range(0,self.cols): 
-         result += 'R' if self.board[row][col] == RED else 'B' if self.board[row][col] == BLACK else '.' if self.board[row][col] == EMPTY else '?'
+         result += redToken if self.board[row][col] == RED else blackToken if self.board[row][col] == BLACK else noToken if self.board[row][col] == EMPTY else '?'
        result += "\n"   
      result += "FourInARow: "+str(self.FourInARow())+"\n"   
      result += "BoardFilled: "+str(self.BoardFilled)+"\n"   

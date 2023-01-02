@@ -11,7 +11,7 @@ cols = 8
 RED=1
 BLACK=2 
 
-def DoGameRuns(redModel,blackModel,rows=6,cols=8,numGamesToPlay=0):
+def DoGameRuns(redModel,blackModel,rows=6,cols=8,numGamesToPlay=0,showMoveByMove=False,showGameByGame=False):
    epsilon = 1.
    epsilonDelta = 0.0002 
    inputs = {RED: [], BLACK: []} 
@@ -30,6 +30,8 @@ def DoGameRuns(redModel,blackModel,rows=6,cols=8,numGamesToPlay=0):
  
        for color in [RED,BLACK]:
          # "Sometimes" (more often at first) pick randomly. 
+         if gameWon or boardFilled: 
+           continue 
 
          model = redModel if color == RED else blackModel 
 
@@ -61,9 +63,12 @@ def DoGameRuns(redModel,blackModel,rows=6,cols=8,numGamesToPlay=0):
          inputs[color].append(bv) 
          targets[color].append(qvalues) 
          lastaction[color] = action
-  
-         print (d) 
+          
+         if showMoveByMove:  
+           print (d) 
 
+     if showGameByGame:  
+       print (d) 
      gameCount += 1 
 
 
@@ -86,6 +91,6 @@ if __name__ == "__main__":
   cols=8 
   redBrain = Brain(iS=(rows*cols,),outputs=cols) 
   blackBrain = Brain(iS=(rows*cols,),outputs=cols) 
-  DoGameRuns(redBrain.model,blackBrain.model,rows=rows,cols=cols,numGamesToPlay=10000)
+  DoGameRuns(redBrain.model,blackBrain.model,rows=rows,cols=cols,numGamesToPlay=10000,showGameByGame=True)
   redBrain.model.save('red_model.h5')
   blackBrain.model.save('black_model.h5')
