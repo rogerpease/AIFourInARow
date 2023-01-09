@@ -4,6 +4,7 @@
 import numpy as np 
 from FourInARow import FourInARowBoard  
 from brain import Brain
+from SampleQueue import SampleQueue 
 
  
 rows = 6 
@@ -12,30 +13,34 @@ RED=1
 BLACK=2 
 
 def DoGameRuns(redModel,blackModel,rows=6,cols=8,numGamesToPlay=0,showMoveByMove=False,showGameByGame=False):
-   epsilon = 1.
-   epsilonDelta = 0.0002 
-   inputs = {RED: [], BLACK: []} 
-   targets = {RED: [], BLACK: []} 
-   lastaction  = {RED: None, BLACK: None} 
-   gameCount = 0 
+  redSQ =SampleQueue(max_memory=100) 
+  blackSQ =SampleQueue(max_memory=100) 
+  epsilon = 1.
+  epsilonDelta = 0.0002 
 
-   while gameCount < numGamesToPlay: 
-     d = FourInARowBoard(rows=6,cols=cols)
-     print ("Game ",gameCount," Started") 
+  priorSideAction = None 
+  gameCount = 0 
 
-     gameWon = False
-     boardFilled = False  
-    
-     while not gameWon and not boardFilled: 
- 
-       for color in [RED,BLACK]:
+  while gameCount < numGamesToPlay: 
+    d = FourInARowBoard(rows=6,cols=cols)
+    print ("Game ",gameCount," Started") 
+
+    gameWon = False
+    boardFilled = False  
+   
+    color = RED 
+    while not gameWon and not boardFilled: 
+
          # "Sometimes" (more often at first) pick randomly. 
          if gameWon or boardFilled: 
            continue 
 
          model = redModel if color == RED else blackModel 
+         sampleQueue      = redSQ   if color == RED else blackSQ  
+         otherSampleQueue = blackSQ if color == RED else redSQ  
 
          qvalues = model.predict(d.board.reshape(1,1,rows*cols)[0])[0]
+
          if np.random.rand(1) < epsilon:  
            action = int(np.random.rand()*cols)
          else:  
@@ -48,42 +53,37 @@ def DoGameRuns(redModel,blackModel,rows=6,cols=8,numGamesToPlay=0,showMoveByMove
   
          if not gameWon and boardFilled:
            qvalues[action] = -1    
+           sampleQueue.remember(d.board.reshape(1,1,rows*cols),qvalues) 
          elif gameWon:
            # If I won, then punish lost side. 
            qvalues[action] = 1    
-           if color == RED:
-             targets[BLACK][-1][lastaction[BLACK]] = -1
-           else: #  color == BLACK:
-             targets[RED][-1][lastaction[RED]] = -1
+           sampleQueue.remember(d.board.reshape(1,1,rows*cols),qvalues) 
+           inputs,outputs = otherSampleQueue.getlast()  
+           outputs[prevaction] = -1 
+           otherSampleQueue.updatelast(inputs,outputs)  
+
          else:
            qvalues[action] *= 1.01    
+           sampleQueue.remember(d.board.reshape(1,1,rows*cols),qvalues) 
 
-         # Remembering the transition and retraining our AI
-         bv = d.board.copy().reshape(-1,1,rows*cols)[0][0]
-         inputs[color].append(bv) 
-         targets[color].append(qvalues) 
-         lastaction[color] = action
-          
+         prevaction = action 
+         color = RED if color == BLACK else BLACK 
+ 
          if showMoveByMove:  
            print (d) 
 
-     if showGameByGame:  
-       print (d) 
-     gameCount += 1 
+    if showGameByGame:  
+     print (d) 
+    gameCount += 1 
 
-
-   redInput  = np.array(inputs[RED]).reshape(-1,rows*cols) 
-   redTarget = np.array(targets[RED]).reshape(-1,1,cols)
-   redModel.fit  (redInput,redTarget, 
-                  batch_size=min(40,len(inputs)))
-
-   blackInput  = np.array(inputs[RED]).reshape(-1,rows*cols) 
-   blackTarget = np.array(targets[RED]).reshape(-1,1,cols)
-   blackModel.fit(blackInput,blackTarget,
-                  batch_size=min(40,len(inputs)))
-
-   if epsilon > 0:
-      epsilon -= epsilonDelta 
+    redInput, redTarget  = redSQ.get_batch()
+    redModel.fit  (redInput,redTarget, batch_size=min(40,len(inputs)))
+ 
+    blackInput,  blackTarget = blackSQ.get_batch() 
+    blackModel.fit(blackInput,blackTarget, batch_size=min(40,len(inputs)))
+ 
+    if epsilon > 0:
+       epsilon -= epsilonDelta 
 
 
 if __name__ == "__main__":
