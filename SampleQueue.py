@@ -10,8 +10,8 @@ class SampleQueue(object):
    
   def remember(self,inputs,outputs):
     self.memory.append([inputs,outputs]) 
-    if len(self.memory) > self.max_memory:
-      del self.memory[0]
+    while len(self.memory) > self.max_memory:
+      del self.memory[int(np.random.randint(0,len(self.memory)))]
      
   def getlast(self):
     print ("LSM",len(self.memory))
@@ -22,18 +22,17 @@ class SampleQueue(object):
 
   def get_batch(self,batch_size=10):
     len_memory  = len(self.memory)
-    num_inputs  = self.memory[-1][0].shape[2]
-    num_outputs = self.memory[-1][1].shape[2]
-     
-    inputs  = np.zeros((min(len_memory,batch_size),1,num_inputs)) 
-    targets = np.zeros((min(len_memory,batch_size),1,num_outputs)) 
 
+    num_elems = min(len_memory,batch_size)
+    inputs  = list(range(num_elems))
+    targets = list(range(num_elems))
+
+    remove = []
     for i,idx in enumerate(np.random.randint(0,len_memory,size=min(len_memory,batch_size))):
-      print(self.memory[idx][0])  
-      print(inputs) 
+      remove.append(idx)
       inputs[i] = self.memory[idx][0]  
-      print(self.memory[idx][1])  
       targets[i] = self.memory[idx][1]
+
     return inputs, targets 
 
 if __name__ == "__main__":

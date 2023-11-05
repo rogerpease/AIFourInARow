@@ -5,26 +5,31 @@ import numpy as np
 from FourInARow import FourInARowBoard  
 from brain import Brain
 from SampleQueue import SampleQueue 
-
+import gc
+import tensorflow as tf
+import keras 
  
 rows = 6 
 cols = 8 
 RED=1
 BLACK=2 
 
-def DoGameRuns(redModel,blackModel,rows=6,cols=8,numGamesToPlay=0,showMoveByMove=False,showGameByGame=False):
-  redSQ =SampleQueue(max_memory=100) 
-  blackSQ =SampleQueue(max_memory=100) 
+def DoGameRuns(redModel,blackModel,rows=rows,cols=cols,numGamesToPlay=0,showMoveByMove=False,showGameByGame=False):
+  redSQ   = SampleQueue(max_memory=100) 
+  blackSQ = SampleQueue(max_memory=100) 
   epsilon = 1.
   epsilonDelta = 0.0002 
 
   priorSideAction = None 
   gameCount = 0 
 
-  while gameCount < numGamesToPlay: 
-    d = FourInARowBoard(rows=6,cols=cols)
-    print ("Game ",gameCount," Started") 
+  dumpFunction = FourInARowBoard.BoardInOneHotFormat
 
+  while gameCount < numGamesToPlay: 
+    d = FourInARowBoard(rows=rows,cols=cols)
+    print ("Game ",gameCount," Started") 
+  
+ 
     gameWon = False
     boardFilled = False  
    
@@ -39,7 +44,11 @@ def DoGameRuns(redModel,blackModel,rows=6,cols=8,numGamesToPlay=0,showMoveByMove
          sampleQueue      = redSQ   if color == RED else blackSQ  
          otherSampleQueue = blackSQ if color == RED else redSQ  
 
-         qvalues = model.predict(d.board.reshape(1,1,rows*cols)[0])[0]
+         boardVector = dumpFunction(d)
+         boardVector = np.array(boardVector).reshape(-1,rows*cols*3)
+         qvalues = model.predict(boardVector)[0]
+         gc.collect()
+         keras.backend.clear_session()
 
          if np.random.rand(1) < epsilon:  
            action = int(np.random.rand()*cols)
@@ -53,34 +62,40 @@ def DoGameRuns(redModel,blackModel,rows=6,cols=8,numGamesToPlay=0,showMoveByMove
   
          if not gameWon and boardFilled:
            qvalues[action] = -1    
-           sampleQueue.remember(d.board.reshape(1,1,rows*cols),qvalues) 
+           sampleQueue.remember(boardVector,qvalues) 
+
          elif gameWon:
            # If I won, then punish lost side. 
+           for i in range(0,cols):
+             qvalues[i] = 0    
            qvalues[action] = 1    
-           sampleQueue.remember(d.board.reshape(1,1,rows*cols),qvalues) 
-           inputs,outputs = otherSampleQueue.getlast()  
-           outputs[prevaction] = -1 
-           otherSampleQueue.updatelast(inputs,outputs)  
+           sampleQueue.remember(boardVector,qvalues) 
 
          else:
            qvalues[action] *= 1.01    
-           sampleQueue.remember(d.board.reshape(1,1,rows*cols),qvalues) 
+           sampleQueue.remember(boardVector,qvalues) 
 
-         prevaction = action 
          color = RED if color == BLACK else BLACK 
  
          if showMoveByMove:  
            print (d) 
 
     if showGameByGame:  
-     print (d) 
+      print (d) 
+
     gameCount += 1 
 
     redInput, redTarget  = redSQ.get_batch()
-    redModel.fit  (redInput,redTarget, batch_size=min(40,len(inputs)))
- 
+    redInput  = np.array(redInput).reshape(-1,144)
+    redTarget = np.array(redTarget).reshape(-1,8)
+
+    redModel.fit(redInput,redTarget)
+
     blackInput,  blackTarget = blackSQ.get_batch() 
-    blackModel.fit(blackInput,blackTarget, batch_size=min(40,len(inputs)))
+    blackInput  = np.array(blackInput).reshape(-1,144)
+    blackTarget = np.array(blackTarget).reshape(-1,8)
+    blackModel.fit(blackInput,blackTarget)
+    gc.collect()
  
     if epsilon > 0:
        epsilon -= epsilonDelta 
@@ -89,8 +104,8 @@ def DoGameRuns(redModel,blackModel,rows=6,cols=8,numGamesToPlay=0,showMoveByMove
 if __name__ == "__main__":
   rows=6
   cols=8 
-  redBrain = Brain(iS=(rows*cols,),outputs=cols) 
-  blackBrain = Brain(iS=(rows*cols,),outputs=cols) 
+  redBrain = Brain(iS=(rows*cols*3,),outputs=cols) 
+  blackBrain = Brain(iS=(rows*cols*3,),outputs=cols) 
   DoGameRuns(redBrain.model,blackBrain.model,rows=rows,cols=cols,numGamesToPlay=10000,showGameByGame=True)
   redBrain.model.save('red_model.h5')
   blackBrain.model.save('black_model.h5')
