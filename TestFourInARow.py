@@ -193,6 +193,15 @@ class MyTestCase(unittest.TestCase):
         stopLossThisMove.SetNextMoveColor(RED)
         assert stopLossThisMove.GoodMovesToStopALossThisMove() == [0], stopLossThisMove.GoodMovesToStopALossThisMove()
 
+        fiarb = FourInARowBoard.LoadBoardFromString('''........
+........
+........
+........
+-..-.|..
+-.||.||-''',redToken='|',blackToken='-')
+        assert(fiarb.GoodMovesToWinThisMove() == [4])
+
+
 #assert (d.CheckUpRight(0, 0))
 #assert (not d.CheckUpRight(nrows - 3, 0))
 #assert (not d.CheckUpRight(nrows - 4, 0)), d.__str__()
