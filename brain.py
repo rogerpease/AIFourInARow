@@ -13,11 +13,15 @@ assert len(physical_devices) > 0, "Not enough GPU hardware devices available"
 config = tf.config.experimental.set_memory_growth(physical_devices[0], True)
 
 class Brain():
-  def __init__(self, iS = None,outputs=1,lr=0.01):
+  def __init__(self, iS = None,outputs=1,lr=0.0001):
     self.learningRate = lr 
     self.inputShape = iS 
     self.model = Sequential() 
-    self.model.add(Dense(units=1000,input_shape=iS))
+    self.model.add(Dense(units=400,input_shape=iS))
+    self.model.add(Dense(units=100))
+    self.model.add(Dense(units=100))
+    self.model.add(Dense(units=100))
+    self.model.add(Dense(units=100))
     self.model.add(Dense(units=outputs))
     self.model.compile(loss='mse',optimizer=Adam(learning_rate=self.learningRate))
   
@@ -36,4 +40,4 @@ if __name__ == "__main__":
   p = d.model.predict([[10, 20, 30, 40]])
   assert(p[0] > 190 and p[0] < 210)
   p = d.model.predict([[80, 60, 40, 10]])
-  print(p[0])
+  assert (p[0] > 370 and p[0] < 390)

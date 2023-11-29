@@ -1,10 +1,8 @@
-#!/usr/bin/env python3 import numpy as np 
+#!/usr/bin/env python3 
+
+import numpy as np 
 import copy
 import numpy as np
-#
-# board numpy.array(5,8) 
-#  
-#
 
 
 RED=2 
@@ -15,46 +13,55 @@ BLACKPIECE = '-'
 
 class FourInARowBoard():
 
-  def __init__(self,rows=5,cols=8):
+  def __init__(self,rows=6,cols=8,inarow=4):
     self.board = np.zeros((rows,cols),dtype='u8')
     self.rows = rows
     self.cols = cols
-    self.inarow = 4 
+    self.inarow = inarow
     self.turnColor = RED 
-    self.BoardVectorLen = rows*cols*2+2
 
   def FindBestMove(self, qvalues):
-
-      qvals_new = np.array(qvalues)
+      if qvalues == None:
+        qvals_new = np.zeros(self.cols)
+      else:
+        # So we don't update source.
+        qvals_new = np.array(qvalues)
 
       for i in range(self.cols):
         if not self.IsValidMove(i):
-          qvals_new[i] -= 5
+          qvals_new[i] = -1
 
       # If I can win this move, make this.
       wins = self.GoodMovesToWinThisMove()
       for i in wins:
-        qvals_new[i] += 2
+        qvals_new[i] = 1
 
       stoploss = self.GoodMovesToStopALossThisMove()
       for i in stoploss:
-         qvals_new[i] += 0.5
+          qvals_new[i] = 0.5
 
       setupwins = self.GoodMovesToSetupAWinNextMove()
-      for i in setupwins:
-        qvals_new[i] += 0.5 * (setupwins[i])
+      if not wins:
+        for i in setupwins:
+          qvals_new[i] += 0.5 * (setupwins[i])
 
       setuploss = self.BadMovesThatWouldSetupALossNextMove()
-      print(setuploss)
       for i in setuploss:
-        qvals_new[i] -= 2
+        if i not in wins:
+          qvals_new[i] = -1
 
       avoidsetupfork = self.GoodMovesToAvoidSettingUpAForkNextMove()
       for i in avoidsetupfork:
         if i not in wins:
-          qvals_new[i] += 1.5
+          qvals_new[i] = 1
 
-      return {"qvalues": qvalues,"qnew": qvals_new, "wins": wins, "stoploss": stoploss,"setupwins": setupwins, "setuploss": setuploss,"avoidsetupfork":avoidsetupfork}
+      qnew_norm = np.linalg.norm(qvals_new)
+      if qnew_norm != 0:
+        qvals_new = qvals_new / qnew_norm
+
+      return {"qvalues": qvalues,"qnew": qvals_new,
+              "goodmovestowin": wins, "goodmovestostoploss": stoploss,"goodmovestosetupwins": setupwins, "badmovestosetuploss": setuploss,
+              "goodmovestoavoidsetupfork":avoidsetupfork}
 
 
   def NextMovePiece(self):
@@ -187,7 +194,21 @@ class FourInARowBoard():
           result += [1,0]
         elif self.board[row][col] == BLACK:
           result += [0,1]
-    return np.array(result).reshape(self.BoardVectorLen) 
+    return np.array(result).reshape(2+2*(self.rows)*(self.cols))
+
+
+  def BoardInOneHotOpponentFormat(self):
+    result = []
+
+    for row in range(0,self.rows):
+      for col in range(0,self.cols):
+        if self.board[row][col] == EMPTY:
+          result += [0,0]
+        elif self.board[row][col] == self.turnColor:
+          result += [1,0]
+        elif self.board[row][col] == self.OpponentColor():
+          result += [0,1]
+    return np.array(result).reshape(2*self.rows*self.cols)
   
   @property
   def BoardFilled(self):
@@ -265,7 +286,36 @@ class FourInARowBoard():
         self.board[row][col] = color 
         found = True
       if not found:
-        row += 1   
+        row += 1
+
+
+
+  @staticmethod
+  def LoadBoardFromString(boardString,blackToken=BLACKPIECE,redToken=REDPIECE):
+   # RB...._BR...
+    result = FourInARowBoard()
+    rowStrings = boardString.split("\n")
+    rowStrings = [x.strip() for x in rowStrings if len(x.strip()) > 0]
+    numRows = len(rowStrings)
+    numCols = len(rowStrings[0])
+
+    result = FourInARowBoard(rows=numRows, cols=numCols)
+
+    row = numRows
+    for rowString in rowStrings:
+       rowString = rowString.strip()
+       row -= 1
+       for col in range(0,result.cols):
+         if rowString[col] == redToken:
+           result.board[row][col] = RED
+         elif rowString[col] == blackToken:
+           result.board[row][col] = BLACK
+         elif rowString[col] == '.':
+           result.board[row][col] = EMPTY
+         else:
+           raise(Exception("Illegal Move" + str(rowString) + " Col " + str(col)))
+    assert (row == 0)
+    return result
 
 
   def IsValidMove(self,col):
@@ -273,17 +323,21 @@ class FourInARowBoard():
       return True
     return False
 
-  def __str__(self,redToken=REDPIECE,blackToken=BLACKPIECE,noToken=' '):
-     print("RED" if self.turnColor == RED else "BLACK",end="")
-     print("'s turn (",end="")
-     print(redToken if self.turnColor == RED else blackToken,end=")\n")
-     result = "" 
+  def __str__(self,redToken=REDPIECE,blackToken=BLACKPIECE,noToken=' ',lineBreak="\n"):
+     result = ""
+     result = ""
+     result +=  "RED" if self.turnColor == RED else "BLACK"
+     result += "'s turn ("
+     result += redToken if self.turnColor == RED else blackToken
+     result += ")"
+     result += lineBreak
+
      for row in reversed(range(0,self.rows)): 
        for col in range(0,self.cols): 
          result += redToken if self.board[row][col] == RED else blackToken if self.board[row][col] == BLACK else noToken if self.board[row][col] == EMPTY else '?'
-       result += "\n"   
-     result += "FourInARow: "+str(self.FourInARow())+"\n"   
-     result += "BoardFilled: "+str(self.BoardFilled)+"\n"   
+       result += lineBreak
+     result += "FourInARow: "+str(self.FourInARow())+lineBreak
+     result += "BoardFilled: "+str(self.BoardFilled)+lineBreak
      return result
   
   def PlacePieces(self,locs,color):
@@ -385,4 +439,12 @@ if __name__ == "__main__":
   assert result[2+2*rowlen+1] == 0,result
 
 
-
+  cl = FourInARowBoard.LoadBoardFromString(
+'''........
+  RB......
+  ........
+  RBRBRBRB''',blackToken='B',redToken='R')
+  assert (cl.rows == 4)
+  assert (cl.cols == 8)
+  assert (cl.board[0][1] == BLACK),cl.board
+  assert (cl.board[0][0] == RED),cl.board
