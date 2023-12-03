@@ -113,17 +113,12 @@ if __name__ == "__main__":
   BuildSeedFiles = False
   TrainFromModel = True
 
-  if BuildSeedFiles:
-    numGamesToPlay = 1000
-    with Pool(10) as pool:
-        pool.map(GameRunBuildFiles,range(0,numGamesToPlay))
-  elif TrainFromModel:
-    epsilon = 1
-    numGamesToPlay = 10
-    myModel = tf.keras.models.load_model("OneModel.keras")
+  epsilon = 1
+  numGamesToPlay = 10
+  myModel = tf.keras.models.load_model("OneModel.keras")
 
-    tuples = []
-    while epsilon > 0.5:
+  tuples = []
+  while epsilon > 0.5:
       inputs = []
       targets = []
 
@@ -140,7 +135,4 @@ if __name__ == "__main__":
       print("Incremented Model")
       myModel.save("IncrementedModel.keras")
       epsilon -= (0.01)
-
-
-
-#  myBrain.model.save('OneModel.h5')
+    

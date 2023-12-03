@@ -5,6 +5,7 @@ import numpy as np
 from FourInARow import FourInARowBoard  
 from brain import Brain
 from SampleQueue import SampleQueue 
+#from sklearn.model_selection import train_test_split 
 import gc
 import tensorflow as tf
 import keras
@@ -49,7 +50,7 @@ if __name__ == "__main__":
   print (len(Inputs),len(Targets))
   Inputs  = np.array(Inputs).reshape(-1,rows*cols*2)
   Targets = np.array(Targets).reshape(-1,cols)
-  myBrain.model.fit(Inputs,Targets,epochs=5,batch_size=2000)
+  myBrain.model.fit(Inputs,Targets,epochs=10,batch_size=2000)
   gc.collect()
   myBrain.model.save('OneModel.keras')
 

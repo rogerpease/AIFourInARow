@@ -24,70 +24,83 @@ class MyTestCase(unittest.TestCase):
                 assert (not d.IsValidMove(0))
 
 
-    def test_checkup(self):
-        for row in range(0,self.rows-self.inarow+1):
-            for col in range(0, self.cols):
-                d = FourInARowBoard(rows=self.rows, cols=self.cols)
-                d.PlacePieces([(row,col),(row+1,col),(row+2,col),(row+3,col)],color=RED)
-                for checkRow in range(0, self.rows):
-                   for checkCol in range(0, self.cols):
-                       assert(d.FourInARow())
-                       if (checkRow == row and checkCol == col):
-                          assert (d.CheckUp(checkRow,checkCol)), d.__str__(redToken='|',noToken='.')+ str(checkRow) + str(checkCol)
-                       else:
-                          assert (not d.CheckUp(checkRow,checkCol)), d.__str__(redToken='|',noToken='.')+ str(checkRow) + str(checkCol)
+    def test_getwinlists(self):
+        d = FourInARowBoard(rows=6, cols=8)
+        winlists = d.GetWinLists((4,4))
+        expectList = [
+            # UpRight
+            [(1, 1), (2, 2), (3, 3), (4, 4)],
+            [(2, 2), (3, 3), (4, 4), (5, 5)],
+            # UpLeft  4,4 5,3 3,5 2,6
+            [(2,6),(3,5),(4,4),(5,3)],
+            [(1,7),(2,6),(3,5),(4,4)],
 
-    def test_checkright(self):
-        for row in range(0,self.rows):
-            for col in range(0, self.cols-self.inarow+1):
-                d = FourInARowBoard(rows=self.rows, cols=self.cols)
-                d.PlacePieces([(row,col),(row,col+1),(row,col+2),(row,col+3)],color=RED)
-                for checkRow in range(0, self.rows):
-                   for checkCol in range(0, self.cols):
-                       assert(d.FourInARow())
-                       if (checkRow == row and checkCol == col):
-                          assert (d.CheckRight(checkRow,checkCol)), d.__str__(redToken='|',noToken='.')+ str(checkRow) + str(checkCol)
-                       else:
-                          assert (not d.CheckRight(checkRow,checkCol)), d.__str__(redToken='|',noToken='.')+ str(checkRow) + str(checkCol)
+            # Up
+            [(1, 4), (2, 4), (3, 4), (4, 4)],
+            [(2, 4), (3, 4), (4, 4), (5, 4)],
 
-    def test_checkupright(self):
-        for row in range(0,self.rows-self.inarow+1):
-            for col in range(0, self.cols-self.inarow+1):
-                d = FourInARowBoard(rows=self.rows, cols=self.cols)
-                d.PlacePieces([(row,col),(row+1,col+1),(row+2,col+2),(row+3,col+3)],color=RED)
+            # Horiz
+            [(4, 1), (4, 2), (4, 3), (4, 4)],
+            [(4, 2), (4, 3), (4, 4), (4, 5)],
+            [(4, 3), (4, 4), (4, 5), (4, 6)],
+            [(4, 4), (4, 5), (4, 6), (4, 7)]
 
-                for checkRow in range(0, self.rows):
-                   for checkCol in range(0, self.cols):
-                       assert(d.FourInARow())
-                       if (checkRow == row and checkCol == col):
-                          assert (d.CheckUpRight(checkRow,checkCol)), d.__str__(redToken='|',noToken='.')+ str(checkRow) + str(checkCol)
-                       else:
-                          assert (not d.CheckUpRight(checkRow,checkCol)), d.__str__(redToken='|',noToken='.')+ str(checkRow) + str(checkCol)
-    def test_checkupleft(self):
-        for row in range(0,self.rows-self.inarow+1):
-            for col in range(self.inarow-1, self.cols):
-                d = FourInARowBoard(rows=self.rows, cols=self.cols)
-                d.PlacePieces([(row,col),(row+1,col-1),(row+2,col-2),(row+3,col-3)],color=RED)
-                for checkRow in range(0, self.rows):
-                   for checkCol in range(0, self.cols):
-                       assert(d.FourInARow())
-                       if (checkRow == row and checkCol == col):
-                          assert (d.CheckUpLeft(checkRow,checkCol)), d.__str__(redToken='|',noToken='.')+ str(checkRow) + str(checkCol)
-                       else:
-                          assert (not d.CheckUpLeft(checkRow,checkCol)), d.__str__(redToken='|',noToken='.')+ str(checkRow) + str(checkCol)
+        ]
+        for expected in expectList:
+            assert expected in winlists, str(expected) + str(winlists)
+        assert len(winlists) == len(expectList), winlists
+
+        winlists = d.GetWinLists((2,2))
+        expectList = [
+            # UpRight
+            [(1, 1), (2, 2), (3, 3), (4, 4)],
+            [(0, 0), (1, 1), (2, 2), (3, 3)],
+            [(2, 2), (3, 3), (4, 4),(5,5)],
 
 
+            # UpLeft  4,4 5,3 3,5 2,6
+            [(0,4),(1,3),(2,2),(3,1)],
+            [(1, 3), (2, 2), (3, 1), (4, 0)],
 
-# Test if I can win on next move
+            # Up
+            [(0, 2), (1, 2), (2, 2), (3, 2)],
+            [(1, 2), (2, 2), (3, 2), (4, 2)],
+            [(2, 2), (3, 2), (4, 2), (5,2)],
+
+            # Horiz
+            [(2,0),(2,1),(2,2),(2,3)],
+            [(2,1),(2,2),(2,3),(2,4)],
+            [(2,2),(2,3),(2,4),(2,5)]
+
+        ]
+
+        for expected in expectList:
+          assert expected in winlists, str(expected) + str(winlists)
+        assert len(winlists) == len(expectList), winlists
+
+
+    def test_fourinarow(self):
+        d = FourInARowBoard(rows=self.rows, cols=self.cols)
+        d.PlacePieces([(0, 0), (0, 1), (0, 2)], RED)
+        assert not d.FourInARow()
+        d.PlacePieces([(3, 3)], RED)
+        assert not d.FourInARow()
+        d.PlacePieces([(0, 3)], RED)
+        assert d.FourInARow()
+
+    # Test if I can win on next move
     def test_goodmovestowinthismove(self):
         # Test Canwin
         canwin = FourInARowBoard(rows=self.rows, cols=self.cols)
-        canwin.PlacePieces([(0, 0)], RED)
+        canwin.PlacePieces([(0, 2)], RED)
         assert not canwin.GoodMovesToWinThisMove()
-        canwin.PlacePieces([(0, 1), (0, 2)], RED)
+        canwin.PlacePieces([(0, 1), (0, 3)], RED)
         assert canwin.GoodMovesToWinThisMove()
+        assert len(canwin.GoodMovesToWinThisMove()) == 2
+        assert 0 in canwin.GoodMovesToWinThisMove(),canwin.GoodMovesToWinThisMove()
+        assert 4 in canwin.GoodMovesToWinThisMove(),canwin.GoodMovesToWinThisMove()
 
-    def test_howtostoplossthismove(self):
+    def test_goodmovestostopalossthismove(self):
     # If red plays col3 three times and black plays col2 3 times, then red will win next move.
     #
     #                     RB
@@ -165,7 +178,8 @@ class MyTestCase(unittest.TestCase):
         cansetupwin.PlacePieces([(0,1),(0,2), (0,3)], RED)
         cansetupwin.SetNextMoveColor(RED)
         bestmoves = cansetupwin.FindBestMove(np.zeros(self.cols))
-        assert 0 in bestmoves["wins"],bestmoves
+        assert 0 in bestmoves["goodmovestowin"], bestmoves
+        assert 4 in bestmoves["goodmovestowin"], bestmoves
 
     def test_baordfilled(self):
         d = FourInARowBoard(rows=self.rows, cols=self.cols)
@@ -193,56 +207,8 @@ class MyTestCase(unittest.TestCase):
         stopLossThisMove.SetNextMoveColor(RED)
         assert stopLossThisMove.GoodMovesToStopALossThisMove() == [0], stopLossThisMove.GoodMovesToStopALossThisMove()
 
-        fiarb = FourInARowBoard.LoadBoardFromString('''........
-........
-........
-........
--..-.|..
--.||.||-''',redToken='|',blackToken='-')
-        assert(fiarb.GoodMovesToWinThisMove() == [4])
 
 
-#assert (d.CheckUpRight(0, 0))
-#assert (not d.CheckUpRight(nrows - 3, 0))
-#assert (not d.CheckUpRight(nrows - 4, 0)), d.__str__()
-#assert (d.CheckUpLeft(0, 3))
-#assert (not d.CheckUpLeft(0, 2))
-#assert (not d.CheckUpLeft(nrows - 3, 2))
-
-#d = FourInARowBoard(rows=nrows, cols=ncols)
-#d.PlacePieces([(0, 3), (0, 4), (0, 5), (0, 6)], RED)
-#assert (d.CheckRight(0, 3))
-
-#d = FourInARowBoard(rows=nrows, cols=ncols)
-#d.PlacePieces([(0, 4), (0, 5), (0, 6), (0, 7)], RED)
-#assert (d.CheckRight(0, 4))
-
-#
-# Exporting
-#
-
-#d = FourInARowBoard(rows=nrows, cols=ncols)
-#d.PlacePieces([(0, 0), (1, 1), (2, 2), (3, 3)], BLACK)
-#d.PlacePieces([(3, 0), (2, 1), (1, 2), (0, 3)], RED)
-
-#rowlen = 2 * d.cols
-#result = d.BoardInOneHotFormat()
-
-# Red's turn
-#assert result[0] == 1, result
-#assert result[1] == 0, result
-
-# 0,0 Black
-#assert result[2 + 0] == 0, result
-#assert result[2 + 1] == 1, result
-
-# 0,3 Red
-#assert result[2 + 2 * 3 + 0] == 1, result
-#assert result[2 + 2 * 3 + 1] == 0, result
-
-# 2,0 Empty
-#assert result[2 + 2 * rowlen + 0] == 0, result
-#assert result[2 + 2 * rowlen + 1] == 0, result
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3 
 
-import numpy as np 
 import copy
 import numpy as np
 
@@ -11,6 +10,18 @@ EMPTY=0
 REDPIECE = '|'
 BLACKPIECE = '-'
 
+
+class BestMoves(object):
+    def __init__(self, goodMovesToWin=[], goodMovesToStopLoss=[], goodMovesToSetupWins=[], badMovesToSetupLoss=[],
+                 goodMovesToAvoidSetupFork=[], illegalMoves=[]):
+        self.goodMovesToWin = goodMovesToWin
+        self.goodMovesToStopLoss = goodMovesToStopLoss
+        self.goodMovesToSetupWins = goodMovesToSetupWins
+        self.badMovesToSetupLoss = badMovesToSetupLoss
+        self.goodMovesToAvoidSetupFork = goodMovesToAvoidSetupFork
+        self.illegalMoves = illegalMoves
+
+
 class FourInARowBoard():
 
   def __init__(self,rows=6,cols=8,inarow=4):
@@ -18,50 +29,26 @@ class FourInARowBoard():
     self.rows = rows
     self.cols = cols
     self.inarow = inarow
-    self.turnColor = RED 
+    self.pieceList = {}
+    self.pieceList[RED] = []
+    self.pieceList[BLACK] = []
+    self.turnColor = RED
+    self.FourInARowFound = False
 
-  def FindBestMove(self, qvalues):
-      if qvalues == None:
-        qvals_new = np.zeros(self.cols)
-      else:
-        # So we don't update source.
-        qvals_new = np.array(qvalues)
 
-      for i in range(self.cols):
+  def FindBestMove(self):
+      illegalMoves = []
+      for i in range (0,self.cols):
         if not self.IsValidMove(i):
-          qvals_new[i] = -1
+          illegalMoves.append(i)
 
       # If I can win this move, make this.
       wins = self.GoodMovesToWinThisMove()
-      for i in wins:
-        qvals_new[i] = 1
-
       stoploss = self.GoodMovesToStopALossThisMove()
-      for i in stoploss:
-          qvals_new[i] = 0.5
-
       setupwins = self.GoodMovesToSetupAWinNextMove()
-      if not wins:
-        for i in setupwins:
-          qvals_new[i] += 0.5 * (setupwins[i])
-
       setuploss = self.BadMovesThatWouldSetupALossNextMove()
-      for i in setuploss:
-        if i not in wins:
-          qvals_new[i] = -1
-
       avoidsetupfork = self.GoodMovesToAvoidSettingUpAForkNextMove()
-      for i in avoidsetupfork:
-        if i not in wins:
-          qvals_new[i] = 1
-
-      qnew_norm = np.linalg.norm(qvals_new)
-      if qnew_norm != 0:
-        qvals_new = qvals_new / qnew_norm
-
-      return {"qvalues": qvalues,"qnew": qvals_new,
-              "goodmovestowin": wins, "goodmovestostoploss": stoploss,"goodmovestosetupwins": setupwins, "badmovestosetuploss": setuploss,
-              "goodmovestoavoidsetupfork":avoidsetupfork}
+      return BestMoves(goodMovesToWin=wins,goodMovesToStopLoss=stoploss,goodMovesToSetupWins=setupwins,badMovesToSetupLoss=setuploss,goodMovesToAvoidSetupFork=avoidsetupfork,illegalMoves=illegalMoves)
 
 
   def NextMovePiece(self):
@@ -77,16 +64,18 @@ class FourInARowBoard():
   # Can I win next move? 
   # Assumes game is not over. 
   def GoodMovesToWinThisMove(self, color=None):
-    wins = []
+    winmoves = []
+    if color is None:
+      color = self.turnColor
     for col in range(0,self.cols):
       if self.IsValidMove(col):
-        boardcopy = copy.deepcopy(self)
-        if color != None:
-          boardcopy.SetNextMoveColor(color)
-        boardcopy.DropPiece(col)
-        if boardcopy.FourInARow():
-          wins.append(col)
-    return wins             
+        row = self._RowDroppedPieceWouldLandOn(col)
+        winlists =  self.GetWinLists((row,col))
+        for winlist in winlists:
+           winlist.remove((row,col))
+           if self.ColorContainsAllPieces(color,winlist):
+               winmoves.append(col)
+    return winmoves
 
 
   # Can I lose next move where I wouldn't have lost had I not made a move?
@@ -101,7 +90,7 @@ class FourInARowBoard():
        boardCopy = copy.deepcopy(self)
        # If oppoent would have won anyway had I not made this move, then it doesn't count.
        if boardCopy.IsValidMove(myMove):
-         if boardCopy.GoodMovesToWinThisMove(self.OpponentColor()):
+         if boardCopy.GoodMovesToWinThisMove(color=self.OpponentColor()):
             boardCopy.DropPiece(myMove)
             res = boardCopy.GoodMovesToWinThisMove()
             if not res:
@@ -180,22 +169,6 @@ class FourInARowBoard():
         return []
       return antiForkMoves
 
-  #################################################################################################################
-  #
-  #
-  #
-  def BoardInOneHotFormat(self):
-    result = [1 if self.turnColor == RED else 0, 0 if self.turnColor == RED else 1]
-    for row in range(0,self.rows):
-      for col in range(0,self.cols):
-        if self.board[row][col] == EMPTY:
-          result += [0,0]
-        elif self.board[row][col] == RED:
-          result += [1,0]
-        elif self.board[row][col] == BLACK:
-          result += [0,1]
-    return np.array(result).reshape(2+2*(self.rows)*(self.cols))
-
 
   def BoardInOneHotOpponentFormat(self):
     result = []
@@ -212,83 +185,98 @@ class FourInARowBoard():
   
   @property
   def BoardFilled(self):
-    for row in range(0,self.rows):  
-      for col in range(0,self.cols):  
-        if self.board[row][col] == EMPTY:
-          return False 
+    if len(self.pieceList[RED]) + len(self.pieceList[BLACK]) == self.rows*self.cols:
+      return True
+    return False
+
+
+  def ContainsInvalidLocatione(self,listOflocations):
+    for i in listOflocations:
+      if i[0] < 0 or i[0] >= self.rows or i[1] < 0 or i[1] >= self.cols:
+        return True
+    return False
+
+
+  # if you are checking at 4,4  you could win with:
+  #   - Horiz: 1,0 - 1,3   1,1 -1,4 1,2-1,5, etc.
+  #   - Vert:  0,1 1,1 2,1 3,1
+  #   - Diag:  0,0 1,1 2,2 3,3  1,1 2,2 3,3,4,4
+  #   - Diag:  0,4 1,3 2,2 3,1
+
+  def GetWinLists(self,loc):
+    row,col = loc
+    result = []
+    # Horizontal
+    for sdist in range(0,self.inarow):
+        sublist = []
+        for num in range(0,self.inarow):
+          sublist.append((row, col -sdist + num))
+        if not self.ContainsInvalidLocatione(sublist):
+          result.append(sublist)
+    # Vertical
+    for sdist in range(0, self.inarow):
+        sublist = []
+        for num in range(0, self.inarow):
+            sublist.append((row -sdist + num, col))
+        if not self.ContainsInvalidLocatione(sublist):
+            result.append(sublist)
+    # Up-Left
+    for sdist  in range(0,self.inarow):
+        sublist = []
+        for num in range(0, self.inarow):
+           sublist.append((row + num-sdist, col-num +sdist))
+        if not self.ContainsInvalidLocatione(sublist):
+            result.append(sublist)
+
+    # Up-Right
+    for sdist  in range(0,self.inarow):
+        sublist = []
+        for num in range(0, self.inarow):
+            sublist.append((row + num-sdist, col+num -sdist))
+        if not self.ContainsInvalidLocatione(sublist):
+            result.append(sublist)
+
+    return result
+
+  def ColorContainsAllPieces(self,color, listOflocations):
+    for location in listOflocations:
+       if location not in self.pieceList[color]:
+            return False
     return True
 
-  def CheckRight(self,row,col): 
-    if col+self.inarow > self.cols:
-      return False 
-    if self.board[row][col] == EMPTY:
-      return False 
+  def FourInARow(self):
+    for color in (RED,BLACK):
+       for piece in self.pieceList[color]:
+           winList = self.GetWinLists(piece)
+           for set in winList:
+             if self.ColorContainsAllPieces(color,set):
+               return True
 
-    for i in range(1,self.inarow):
-       if self.board[row][col] != self.board[row][col+i]:
-         return False 
-    return True
-
-  def CheckUp(self,row,col): 
-    if row+self.inarow > self.rows:
-      return False
-    if self.board[row][col] == EMPTY:
-       return False
-    for i in range(1,self.inarow):
-       if (self.board[row][col] != self.board[row+i][col]):
-         return False 
-    return True
-
-  def CheckUpRight(self,row,col): 
-    if self.board[row][col] == EMPTY:
-      return False 
-    if row+self.inarow > self.rows or col+self.inarow > self.cols:
-      return False 
-    for i in range(1,self.inarow):
-       if self.board[row][col] != self.board[row+i][col+i]:
-         return False 
-    return True
-
-  def CheckUpLeft(self,row,col): 
-    if self.board[row][col] == EMPTY:
-      return False 
-    if row+self.inarow > self.rows or col-self.inarow+1 < 0:
-      return False 
-    for i in range(1,self.inarow):
-       if self.board[row][col] != self.board[row+i][col-i]:
-         return False 
-    return True
-
-
-  def FourInARow(self): 
-    for row in range(0,self.rows):  
-      for col in range(0,self.cols):  
-        if ((self.board[row][col] != EMPTY) and 
-            ((self.CheckRight(row,col))  or         
-             (self.CheckUp(row,col))     or 
-             (self.CheckUpLeft(row,col)) or          
-             (self.CheckUpRight(row,col)))): 
-          return True   
     return False 
 
+
+  def _RowDroppedPieceWouldLandOn(self,col):
+      row = 0
+      found = False
+      while not found and row < self.rows:
+          if self.board[row][col] == EMPTY:
+              return row
+          row += 1
+
+
   def DropPiece(self,col,color=None):
-    row = 0 
-    found = False
-    if not self.IsValidMove(col):
-       raise(Exception("Illegal Move" + str(col) + str(self)))
-
-    if color is None:
-       color = self.turnColor 
-       self.turnColor = BLACK if self.turnColor == RED else RED 
-
-    while not found and row < self.rows:
-      if self.board[row][col] == EMPTY: 
-        self.board[row][col] = color 
-        found = True
-      if not found:
-        row += 1
-
-
+      if not self.IsValidMove(col):
+          raise (Exception("Illegal Move" + str(col) + str(self)))
+      row = self._RowDroppedPieceWouldLandOn(col)
+      if color == None:
+          color = self.turnColor
+      self.board[row][col] = color
+      self.pieceList[color].append((row,col))
+      self.turnColor = self.OpponentColor()
+      winList = self.GetWinLists((row,col))
+      for set in winList:
+          if self.ColorContainsAllPieces(color, set):
+              self.FourInARowFound = True
 
   @staticmethod
   def LoadBoardFromString(boardString,blackToken=BLACKPIECE,redToken=REDPIECE):
@@ -343,6 +331,7 @@ class FourInARowBoard():
   def PlacePieces(self,locs,color):
     for loc in locs:
       self.board[loc[0]][loc[1]] = color
+      self.pieceList[color].append(loc)
   
   def TurnColor(self):
     return self.turnColor 
@@ -350,101 +339,3 @@ class FourInARowBoard():
   def OpponentColor(self):
     return BLACK if self.turnColor == RED else RED
 
-
-
-if __name__ == "__main__":
-  nrows = 6
-  ncols = 8
-  d = FourInARowBoard(rows=nrows,cols=ncols) 
-  d.DropPiece(0,color=RED) 
-  d.DropPiece(0,color=RED) 
-  d.DropPiece(0,color=RED) 
-  d.DropPiece(0,color=RED) 
-  d.DropPiece(1,color=BLACK) 
-  d.DropPiece(2,color=BLACK) 
-  d.DropPiece(3,color=BLACK) 
-  d.DropPiece(4,color=BLACK) 
-
-  assert (d.IsValidMove(0)) 
-  d.DropPiece(0,color=RED) 
-  assert (d.IsValidMove(0)) 
-  d.DropPiece(0,color=RED) 
-  assert (not d.IsValidMove(0)) 
-
-  assert (d.CheckUp(0,0)),str(d)
-  assert (not d.CheckRight(0,0))
-  assert (not d.CheckUp(0,1))
-  assert (d.CheckRight(0,1))
-
-
-  # Test Canwin
-  canwin = FourInARowBoard(rows=nrows,cols=ncols) 
-  canwin.PlacePieces([(0,0)],RED) 
-  assert not canwin.GoodMovesToWinThisMove()
-  canwin.PlacePieces([(0,1),(0,2)],RED) 
-  assert canwin.GoodMovesToWinThisMove()
-
-
-
-
-  d = FourInARowBoard(rows=nrows,cols=ncols) 
-
-  assert not d.BoardFilled, d.__str__() 
- 
-  d.PlacePieces([(0,0),(1,1),(2,2),(3,3)],BLACK) 
-  d.PlacePieces([(3,0),(2,1),(1,2),(0,3)],RED) 
-
-  assert (d.CheckUpRight(0,0))
-  assert (not d.CheckUpRight(nrows-3,0))
-  assert (not d.CheckUpRight(nrows-4,0)),d.__str__()
-  assert (d.CheckUpLeft(0,3))
-  assert (not d.CheckUpLeft(0,2))
-  assert (not d.CheckUpLeft(nrows-3,2))
-
-
-  d = FourInARowBoard(rows=nrows,cols=ncols) 
-  d.PlacePieces([(0,3),(0,4),(0,5),(0,6)],RED) 
-  assert (d.CheckRight(0,3))
-
-  d = FourInARowBoard(rows=nrows,cols=ncols) 
-  d.PlacePieces([(0,4),(0,5),(0,6),(0,7)],RED) 
-  assert (d.CheckRight(0,4))
-
-
-  # 
-  # Exporting
-  # 
-
-  d = FourInARowBoard(rows=nrows,cols=ncols) 
-  d.PlacePieces([(0,0),(1,1),(2,2),(3,3)],BLACK) 
-  d.PlacePieces([(3,0),(2,1),(1,2),(0,3)],RED) 
-
-  rowlen = 2*d.cols 
-  result = d.BoardInOneHotFormat()
-
-  # Red's turn 
-  assert result[0] == 1,result
-  assert result[1] == 0,result
-
-  # 0,0 Black 
-  assert result[2+0] == 0,result
-  assert result[2+1] == 1,result
-  
-  # 0,3 Red  
-  assert result[2+2*3+0] == 1,result
-  assert result[2+2*3+1] == 0,result
-  
-  # 2,0 Empty 
-  assert result[2+2*rowlen+0] == 0,result
-  assert result[2+2*rowlen+1] == 0,result
-
-
-  cl = FourInARowBoard.LoadBoardFromString(
-'''........
-  RB......
-  ........
-  RBRBRBRB''',blackToken='B',redToken='R')
-  assert (cl.rows == 4)
-  assert (cl.cols == 8)
-  assert (cl.board[0][1] == BLACK),cl.board
-  assert (cl.board[0][0] == RED),cl.board
